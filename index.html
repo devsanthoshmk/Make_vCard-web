@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spreadsheet to vCard Converter</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        secondary: '#1e40af',
+                        accent: '#8b5cf6'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .drop-zone {
+            border: 2px dashed #cbd5e1;
+            transition: all 0.3s ease;
+        }
+
+        .drop-zone.active {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+
+        .vcard-preview {
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .additional-fields {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.5s ease;
+        }
+
+        .additional-fields.active {
+            max-height: 1000px;
+        }
+
+        .field-card {
+            background-color: #f9fafb;
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            transition: all 0.3s ease;
+        }
+
+        .field-card:hover {
+            background-color: #f0f9ff;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .required-field::after {
+            content: "*";
+            color: #ef4444;
+            margin-left: 4px;
+        }
+    </style>
+</head>
+
+<body class="bg-gradient-to-br from-blue-50 to-purple-50 min-h-screen">
+    <div class="max-w-6xl mx-auto px-4 py-8">
+        <!-- Header -->
+        <header class="text-center mb-12">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-800 mb-2">
+                <i class="fas fa-address-card text-primary mr-2"></i>
+                Spreadsheet to vCard Converter
+            </h1>
+            <p class="text-gray-600 max-w-2xl mx-auto">
+                Upload your Excel or CSV files and convert them to vCard contact files (.vcf)
+                that you can import into your phone or email client.
+            </p>
+        </header>
+
+        <!-- Main App -->
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+            <!-- Progress Steps -->
+            <div class="flex justify-between px-8 py-6 border-b">
+                <div class="step flex-1 text-center relative">
+                    <div
+                        class="step-number w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center mx-auto mb-2">
+                        1
+                    </div>
+                    <div class="step-label font-medium">Upload File</div>
+                    <div class="absolute h-1 w-full bg-gray-200 top-4 left-1/2 -z-10"></div>
+                </div>
+                <div class="step flex-1 text-center relative">
+                    <div
+                        class="step-number w-8 h-8 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center mx-auto mb-2">
+                        2
+                    </div>
+                    <div class="step-label font-medium text-gray-500">Map Columns</div>
+                    <div class="absolute h-1 w-full bg-gray-200 top-4 left-1/2 -z-10"></div>
+                </div>
+                <div class="step flex-1 text-center relative">
+                    <div
+                        class="step-number w-8 h-8 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center mx-auto mb-2">
+                        3
+                    </div>
+                    <div class="step-label font-medium text-gray-500">Download</div>
+                </div>
+            </div>
+
+            <!-- Step 1: File Upload -->
+            <div id="step-upload" class="p-8">
+                <div class="max-w-2xl mx-auto">
+                    <div class="drop-zone rounded-xl p-10 text-center mb-6 cursor-pointer" id="dropZone">
+                        <div class="border-2 border-dashed border-gray-300 rounded-xl py-12 px-4">
+                            <i class="fas fa-cloud-upload-alt text-4xl text-gray-400 mb-4"></i>
+                            <h3 class="text-xl font-medium text-gray-700 mb-2">Upload Spreadsheet</h3>
+                            <p class="text-gray-500 mb-4">Drag & drop your file here or click to browse</p>
+                            <p class="text-sm text-gray-500">Supported formats: XLS, XLSX, CSV, ODS</p>
+                        </div>
+                    </div>
+                    <input type="file" id="fileInput" class="hidden" accept=".xls,.xlsx,.csv,.ods">
+
+                    <div class="text-center mt-8">
+                        <button id="nextBtn"
+                            class="bg-primary hover:bg-secondary text-white font-medium py-3 px-8 rounded-lg transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled>
+                            Next Step <i class="fas fa-arrow-right ml-2"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Column Mapping -->
+            <div id="step-mapping" class="p-8 hidden">
+                <div class="max-w-4xl mx-auto">
+                    <!-- Data Preview -->
+                    <div class="mb-8">
+                        <h3 class="text-lg font-medium text-gray-800 mb-4">Your table</h3>
+                        <div class="border rounded-lg overflow-hidden">
+                            <div class="overflow-x-auto max-h-80">
+                                <table class="min-w-full divide-y divide-gray-200" id="previewTable">
+                                    <thead class="bg-gray-50 sticky top-0">
+                                        <tr>
+                                            <!-- Dynamically populated -->
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        <!-- Dynamically populated -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6">Map Your Columns</h2>
+                    <p class="text-gray-600 mb-6">Select which columns correspond to each contact field. Fields marked
+                        with * are required.</p>
+
+                    <div class="bg-blue-50 rounded-lg p-4 mb-6">
+                        <div class="flex items-center">
+                            <i class="fas fa-info-circle text-blue-500 text-xl mr-3"></i>
+                            <p class="text-blue-700"> <span style='content: "*"; color: #ef4444; margin-left: 4px;'> *
+                                </span>Required fields must be mapped to generate vCards</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <!-- Required Fields -->
+                        <div class="field-card">
+                            <label class="block text-gray-700 font-medium mb-2 required-field">First Name</label>
+                            <select id="first_name"
+                                class="field-select w-full p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary"
+                                required>
+                                <option value="">Select a column</option>
+                            </select>
+                        </div>
+                        <div class="field-card">
+                            <label class="block text-gray-700 font-medium mb-2">Last Name</label>
+                            <select id="last_name"
+                                class="field-select w-full p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary">
+                                <option value="">Select a column</option>
+                            </select>
+                        </div>
+                        <div class="field-card">
+                            <label class="block text-gray-700 font-medium mb-2 required-field">Full Name</label>
+                            <select id="full_name"
+                                class="field-select w-full p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary"
+                                required>
+                                <option value="">Select a column</option>
+                            </select>
+                        </div>
+                        <div class="field-card">
+                            <label class="block text-gray-700 font-medium mb-2 required-field">Phone</label>
+                            <select id="phone"
+                                class="field-select w-full p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary"
+                                required>
+                                <option value="">Select a column</option>
+                            </select>
+                        </div>
+                        <div class="field-card">
+                            <label class="block text-gray-700 font-medium mb-2">Address</label>
+                            <select id="address"
+                                class="field-select w-full p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary">
+                                <option value="">Select a column</option>
+                            </select>
+                        </div>
+                        <div class="field-card">
+                            <label class="block text-gray-700 font-medium mb-2">Email</label>
+                            <select id="email"
+                                class="field-select w-full p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary">
+                                <option value="">Select a column</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Additional Fields Toggle -->
+                    <div class="bg-gray-50 rounded-lg p-4 mb-4 cursor-pointer hover:bg-gray-100 transition"
+                        id="toggleAdditionalFields">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <i class="fas fa-plus-circle text-accent text-xl mr-3"></i>
+                                <h3 class="text-lg font-medium text-gray-800">Additional Fields</h3>
+                            </div>
+                            <i class="fas fa-chevron-down text-gray-600"></i>
+                        </div>
+                    </div>
+
+                    <!-- Additional Fields Content -->
+                    <div class="additional-fields" id="additionalFields">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                            <div class="field-card">
+                                <label class="block text-gray-700 font-medium mb-2">Additional Phone Number</label>
+                                <select id="additional_phone"
+                                    class="field-select w-full p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary">
+                                    <option value="">Select a column</option>
+                                </select>
+                            </div>
+                            <div class="field-card">
+                                <label class="block text-gray-700 font-medium mb-2">Organization</label>
+                                <select id="organization"
+                                    class="field-select w-full p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary">
+                                    <option value="">Select a column</option>
+                                </select>
+                            </div>
+                            <div class="field-card">
+                                <label class="block text-gray-700 font-medium mb-2">Title</label>
+                                <select id="title"
+                                    class="field-select w-full p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary">
+                                    <option value="">Select a column</option>
+                                </select>
+                            </div>
+                            <div class="field-card">
+                                <label class="block text-gray-700 font-medium mb-2">URL</label>
+                                <select id="url"
+                                    class="field-select w-full p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary">
+                                    <option value="">Select a column</option>
+                                </select>
+                            </div>
+                            <div class="field-card">
+                                <label class="block text-gray-700 font-medium mb-2">Birthday</label>
+                                <select id="birthday"
+                                    class="field-select w-full p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary">
+                                    <option value="">Select a column</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+
+
+                    <div class="flex justify-between">
+                        <button id="backBtn"
+                            class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-6 rounded-lg transition duration-300">
+                            <i class="fas fa-arrow-left mr-2"></i> Back
+                        </button>
+                        <button id="generateBtn"
+                            class="bg-primary hover:bg-secondary text-white font-medium py-2 px-6 rounded-lg transition duration-300">
+                            Generate vCard <i class="fas fa-download ml-2"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Download -->
+            <div id="step-download" class="p-8 hidden">
+                <div class="max-w-3xl mx-auto text-center">
+                    <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <i class="fas fa-check text-green-500 text-3xl"></i>
+                    </div>
+                    <h2 class="text-2xl font-bold text-gray-800 mb-4">vCard Generated Successfully!</h2>
+                    <p class="text-gray-600 mb-8">
+                        Your contacts have been converted to vCard format. You can now download the file and import it
+                        into your device.
+                    </p>
+
+                    <div class="bg-gray-50 rounded-xl p-6 mb-8">
+                        <div class="flex flex-col md:flex-row items-center justify-between">
+                            <div class="flex items-center mb-4 md:mb-0">
+                                <i class="fas fa-file-alt text-3xl text-primary mr-4"></i>
+                                <div class="text-left">
+                                    <h4 class="font-medium text-gray-800" id="fileName">contacts.vcf</h4>
+                                    <p class="text-sm text-gray-600" id="fileInfo">vCard File</p>
+                                </div>
+                            </div>
+                            <button id="downloadBtn"
+                                class="bg-primary hover:bg-secondary text-white font-medium py-3 px-6 rounded-lg transition duration-300">
+                                Download vCard File
+                            </button>
+                        </div>
+                    </div>
+
+                    <h3 class="text-lg font-medium text-gray-800 mb-4 text-left">vCard Preview</h3>
+                    <div class="vcard-preview bg-gray-900 text-green-400 p-4 rounded-lg text-left mb-8">
+                        <pre id="vcardPreview"></pre>
+                    </div>
+
+                    <div class="flex justify-center gap-4">
+                        <button id="newFileBtn"
+                            class="bg-gray-800 hover:bg-black text-white font-medium py-2 px-6 rounded-lg transition duration-300">
+                            <i class="fas fa-plus mr-2"></i> New File
+                        </button>
+                        <button id="downloadAnotherBtn"
+                            class="bg-primary hover:bg-secondary text-white font-medium py-2 px-6 rounded-lg transition duration-300">
+                            <i class="fas fa-download mr-2"></i> Download Again
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Features Section -->
+        <div class="mt-16">
+            <h2 class="text-2xl font-bold text-center text-gray-800 mb-12">How It Works</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow">
+                    <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mb-4">
+                        <i class="fas fa-upload text-blue-500 text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">Upload Spreadsheet</h3>
+                    <p class="text-gray-600">Upload your Excel, CSV, or ODS file containing contact information.</p>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow">
+                    <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mb-4">
+                        <i class="fas fa-table text-green-500 text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">Map Columns</h3>
+                    <p class="text-gray-600">Specify which columns correspond to each contact field.</p>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow">
+                    <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center mb-4">
+                        <i class="fas fa-download text-purple-500 text-xl"></i>
+                    </div>
+                    <h3 class="text-xl font-semibold mb-2">Download vCard</h3>
+                    <p class="text-gray-600">Download the vCard file and import it to your device or email client.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="mt-16 pt-8 border-t text-center text-gray-600">
+            <p>© 2023 vCard Generator. All rights reserved.</p>
+            <p class="mt-2 text-sm">This tool runs entirely in your browser - your data never leaves your computer.</p>
+        </footer>
+    </div>
+
+    <script>
+        // Enhanced Contact class with additional fields
+        class Contact {
+            constructor(records, headers) {
+                this.records = records;
+                this.headers = headers;
+                // Start the VCF with a UTF-8 BOM so downstream parsers know the charset
+                this.BOM = '\uFEFF';
+                this.finVCard = "";
+            }
+
+            // Ensure international numbers use “+” instead of leading 00
+            normalizePhone(raw) {
+                if (!raw) return "";
+                let s = String(raw).trim();
+                // replace leading “00” with “+”
+                s = s.replace(/^00/, '+');
+                return s;
+            }
+
+            escapeValue(value) {
+                if (!value) return "";
+                return String(value)
+                    // backslashes first
+                    .replace(/\\/g, "\\\\")
+                    // semicolons
+                    .replace(/;/g, "\\;")
+                    // commas
+                    .replace(/,/g, "\\,")
+                    // newlines
+                    .replace(/\r?\n/g, "\\n");
+            }
+
+            foldLine(line) {
+                if (line.length <= 75) return line;
+                let folded = "";
+                while (line.length > 0) {
+                    if (folded) folded += "\r\n ";
+                    folded += line.substring(0, 75);
+                    line = line.substring(75);
+                }
+                return folded;
+            }
+
+            addContact(data) {
+                // Build a sensible FN: if user supplied a “full_name” mapping, use it;
+                // otherwise build from first+last, or fall back to whichever exists.
+                const fnRaw = data.full_name
+                    ? data.full_name
+                    : [data.first_name, data.last_name].filter(Boolean).join(" ");
+                const fn = this.escapeValue(fnRaw);
+
+                const lines = [
+                    "BEGIN:VCARD",
+                    "VERSION:3.0",
+                    // Mark text fields as UTF-8
+                    `N;CHARSET=UTF-8:${this.escapeValue(data.last_name)};${this.escapeValue(data.first_name)};;;`,
+                    `FN;CHARSET=UTF-8:${fn}`,
+                ];
+
+                // Primary (cell) phone
+                if (data.phone) {
+                    lines.push(
+                        `TEL;TYPE=CELL:${this.escapeValue(this.normalizePhone(data.phone))}`
+                    );
+                }
+
+                // Work phone
+                if (data.additional_phone) {
+                    lines.push(
+                        `TEL;TYPE=WORK:${this.escapeValue(
+                            this.normalizePhone(data.additional_phone)
+                        )}`
+                    );
+                }
+
+                if (data.email) {
+                    lines.push(
+                        // EMAIL is ASCII‑only in vCard3 but we still escape commas, etc.
+                        `EMAIL;TYPE=INTERNET:${this.escapeValue(data.email)}`
+                    );
+                }
+
+                if (data.address) {
+                    lines.push(
+                        `ADR;TYPE=HOME;CHARSET=UTF-8:;;${this.escapeValue(data.address)};;;;`
+                    );
+                }
+
+                if (data.organization) {
+                    lines.push(
+                        `ORG;CHARSET=UTF-8:${this.escapeValue(data.organization)}`
+                    );
+                }
+
+                if (data.title) {
+                    lines.push(`TITLE;CHARSET=UTF-8:${this.escapeValue(data.title)}`);
+                }
+
+                if (data.url) {
+                    lines.push(`URL:${this.escapeValue(data.url)}`);
+                }
+
+                if (data.birthday) {
+                    // Format birthday as YYYYMMDD if possible
+                    const b = data.birthday.replace(/\D/g, '').substring(0, 8);
+                    if (b.length === 8) {
+                        lines.push(`BDAY:${b}`);
+                    }
+                }
+
+                lines.push("END:VCARD");
+
+                // Fold any long lines per RFC
+                return lines.map(l => this.foldLine(l)).join("\r\n") + "\r\n\r\n";
+            }
+
+            generateVCard(mapping) {
+                // Reset, prefix with BOM
+                this.finVCard = this.BOM;
+
+                for (const record of this.records) {
+                    const data = {
+                        first_name: mapping.first_name ? record[mapping.first_name] : "",
+                        last_name: mapping.last_name ? record[mapping.last_name] : "",
+                        full_name: mapping.full_name ? record[mapping.full_name] : "",
+                        phone: mapping.phone ? record[mapping.phone] : "",
+                        additional_phone: mapping.additional_phone
+                            ? record[mapping.additional_phone]
+                            : "",
+                        email: mapping.email ? record[mapping.email] : "",
+                        address: mapping.address ? record[mapping.address] : "",
+                        organization: mapping.organization
+                            ? record[mapping.organization]
+                            : "",
+                        title: mapping.title ? record[mapping.title] : "",
+                        url: mapping.url ? record[mapping.url] : "",
+                        birthday: mapping.birthday ? record[mapping.birthday] : "",
+                    };
+                    this.finVCard += this.addContact(data);
+                }
+
+                return this.finVCard;
+            }
+        }
+
+
+        // DOM Elements
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const nextBtn = document.getElementById('nextBtn');
+        const backBtn = document.getElementById('backBtn');
+        const generateBtn = document.getElementById('generateBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const newFileBtn = document.getElementById('newFileBtn');
+        const downloadAnotherBtn = document.getElementById('downloadAnotherBtn');
+        const stepUpload = document.getElementById('step-upload');
+        const stepMapping = document.getElementById('step-mapping');
+        const stepDownload = document.getElementById('step-download');
+        const previewTable = document.getElementById('previewTable');
+        const vcardPreview = document.getElementById('vcardPreview');
+        const fileName = document.getElementById('fileName');
+        const fileInfo = document.getElementById('fileInfo');
+        const toggleAdditionalFields = document.getElementById('toggleAdditionalFields');
+        const additionalFields = document.getElementById('additionalFields');
+        const fieldSelects = document.querySelectorAll('.field-select');
+
+        // App state
+        let contactApp = null;
+        let currentFile = null;
+        let columnMapping = {};
+
+        // Event Listeners
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('active');
+        });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('active');
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('active');
+
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                handleFileUpload(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleFileUpload(e.target.files[0]);
+            }
+        });
+
+        nextBtn.addEventListener('click', showMappingStep);
+        backBtn.addEventListener('click', showUploadStep);
+        generateBtn.addEventListener('click', generateVCardFile);
+        downloadBtn.addEventListener('click', downloadVCard);
+        newFileBtn.addEventListener('click', resetApp);
+        downloadAnotherBtn.addEventListener('click', () => {
+            showDownloadStep();
+            downloadVCard();
+        });
+
+        toggleAdditionalFields.addEventListener('click', () => {
+            additionalFields.classList.toggle('active');
+            const icon = toggleAdditionalFields.querySelector('i');
+            icon.classList.toggle('fa-plus-circle');
+            icon.classList.toggle('fa-minus-circle');
+        });
+
+        // Field mapping change
+        fieldSelects.forEach(select => {
+            select.addEventListener('change', (e) => {
+                const field = e.target.id;
+                columnMapping[field] = e.target.value;
+            });
+        });
+
+        // Functions
+        function handleFileUpload(file) {
+            if (!file) return;
+
+            currentFile = file;
+            const reader = new FileReader();
+
+            reader.onload = function (e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+
+                    // Get first worksheet
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+
+                    // Convert to JSON
+                    const records = XLSX.utils.sheet_to_json(worksheet);
+
+                    if (records.length === 0) {
+                        alert('No data found in the file');
+                        return;
+                    }
+
+                    const headers = Object.keys(records[0]);
+                    contactApp = new Contact(records, headers);
+
+                    // Enable next button
+                    nextBtn.disabled = false;
+
+                    // Update UI
+                    dropZone.querySelector('h3').textContent = file.name;
+                    dropZone.querySelector('p:nth-of-type(1)').textContent = `${records.length} records found`;
+
+                } catch (error) {
+                    console.error('Error processing file:', error);
+                    alert('Error processing file. Please make sure it is a valid spreadsheet.');
+                }
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+
+        function showMappingStep() {
+            if (!contactApp) return;
+
+            // Update progress UI
+            document.querySelectorAll('.step-number')[1].classList.remove('bg-gray-200', 'text-gray-700');
+            document.querySelectorAll('.step-number')[1].classList.add('bg-primary', 'text-white');
+            document.querySelectorAll('.step-label')[1].classList.remove('text-gray-500');
+
+            // Populate dropdowns
+            fieldSelects.forEach(select => {
+                // Clear previous options except the first
+                while (select.options.length > 1) {
+                    select.remove(1);
+                }
+
+                // Add header options
+                contactApp.headers.forEach(header => {
+                    const option = document.createElement('option');
+                    option.value = header;
+                    option.textContent = header;
+                    select.appendChild(option);
+                });
+            });
+
+            // Populate preview table
+            const thead = previewTable.querySelector('thead tr');
+            thead.innerHTML = '';
+
+            // Add headers
+            contactApp.headers.forEach(header => {
+                const th = document.createElement('th');
+                th.textContent = header;
+                th.classList.add('px-6', 'py-3', 'text-left', 'text-xs', 'font-medium', 'text-gray-500', 'uppercase', 'tracking-wider', 'bg-gray-50');
+                thead.appendChild(th);
+            });
+
+            // Add first 5 rows
+            const tbody = previewTable.querySelector('tbody');
+            tbody.innerHTML = '';
+
+            for (let i = 0; i < Math.min(5, contactApp.records.length); i++) {
+                const row = document.createElement('tr');
+                row.classList.add(i % 2 === 0 ? 'bg-white' : 'bg-gray-50');
+
+                contactApp.headers.forEach(header => {
+                    const td = document.createElement('td');
+                    td.textContent = contactApp.records[i][header] || '';
+                    td.classList.add('px-6', 'py-4', 'whitespace-nowrap', 'text-sm', 'text-gray-500');
+                    row.appendChild(td);
+                });
+
+                tbody.appendChild(row);
+            }
+
+            // Show mapping step
+            stepUpload.classList.add('hidden');
+            stepMapping.classList.remove('hidden');
+        }
+
+        function showUploadStep() {
+            stepMapping.classList.add('hidden');
+            stepUpload.classList.remove('hidden');
+        }
+
+        function showDownloadStep() {
+            // Update progress UI
+            document.querySelectorAll('.step-number')[2].classList.remove('bg-gray-200', 'text-gray-700');
+            document.querySelectorAll('.step-number')[2].classList.add('bg-primary', 'text-white');
+            document.querySelectorAll('.step-label')[2].classList.remove('text-gray-500');
+
+            stepMapping.classList.add('hidden');
+            stepDownload.classList.remove('hidden');
+        }
+
+        function generateVCardFile() {
+            // Validate required fields
+            if (!columnMapping.first_name) {
+                alert('Please map the First Name field');
+                return;
+            }
+
+            if (!columnMapping.full_name) {
+                alert('Please map the Full Name field');
+                return;
+            }
+
+            if (!columnMapping.phone) {
+                alert('Please map the Phone field');
+                return;
+            }
+
+            // Generate vCard
+            const vcardContent = contactApp.generateVCard(columnMapping);
+
+            // Update preview
+            vcardPreview.textContent = vcardContent;
+
+            // Update file info
+            fileName.textContent = currentFile.name.replace(/\.[^/.]+$/, "") + '.vcf';
+            fileInfo.textContent = `vCard File - ${contactApp.records.length} contacts`;
+
+            // Show download step
+            showDownloadStep();
+        }
+
+        function downloadVCard() {
+            const vcardContent = contactApp.finVCard;
+            const blob = new Blob([vcardContent], { type: 'text/vcard' });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName.textContent;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function resetApp() {
+            // Reset UI
+            stepDownload.classList.add('hidden');
+            stepUpload.classList.remove('hidden');
+
+            // Reset state
+            contactApp = null;
+            currentFile = null;
+            columnMapping = {};
+
+            // Reset file input
+            fileInput.value = '';
+            nextBtn.disabled = true;
+
+            // Reset dropzone
+            dropZone.querySelector('h3').textContent = 'Upload Spreadsheet';
+            dropZone.querySelector('p:nth-of-type(1)').textContent = 'Drag & drop your file here or click to browse';
+
+            // Reset progress indicators
+            document.querySelectorAll('.step-number').forEach((el, i) => {
+                if (i > 0) {
+                    el.classList.remove('bg-primary', 'text-white');
+                    el.classList.add('bg-gray-200', 'text-gray-700');
+                }
+            });
+
+            document.querySelectorAll('.step-label').forEach((el, i) => {
+                if (i > 0) {
+                    el.classList.add('text-gray-500');
+                }
+            });
+
+            // Reset additional fields
+            additionalFields.classList.remove('active');
+            const icon = toggleAdditionalFields.querySelector('i');
+            icon.classList.remove('fa-minus-circle');
+            icon.classList.add('fa-plus-circle');
+
+            // Clear all select fields
+            fieldSelects.forEach(select => {
+                select.selectedIndex = 0;
+            });
+        }
+    </script>
+</body>
+
+</html>
