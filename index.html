@@ -140,7 +140,7 @@
                 <div class="max-w-4xl mx-auto">
                     <!-- Data Preview -->
                     <div class="mb-8">
-                        <h3 class="text-lg font-medium text-gray-800 mb-4">Your table</h3>
+                        <h2 class="text-2xl font-bold text-gray-800 mb-6">Your Table</h2>
                         <div class="border rounded-lg overflow-hidden">
                             <div class="overflow-x-auto max-h-80">
                                 <table class="min-w-full divide-y divide-gray-200" id="previewTable">
@@ -186,10 +186,9 @@
                             </select>
                         </div>
                         <div class="field-card">
-                            <label class="block text-gray-700 font-medium mb-2 required-field">Full Name</label>
+                            <label class="block text-gray-700 font-medium mb-2">Full Name</label>
                             <select id="full_name"
-                                class="field-select w-full p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary"
-                                required>
+                                class="field-select w-full p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary">
                                 <option value="">Select a column</option>
                             </select>
                         </div>
@@ -233,13 +232,6 @@
                     <div class="additional-fields" id="additionalFields">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                             <div class="field-card">
-                                <label class="block text-gray-700 font-medium mb-2">Additional Phone Number</label>
-                                <select id="additional_phone"
-                                    class="field-select w-full p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary">
-                                    <option value="">Select a column</option>
-                                </select>
-                            </div>
-                            <div class="field-card">
                                 <label class="block text-gray-700 font-medium mb-2">Organization</label>
                                 <select id="organization"
                                     class="field-select w-full p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary">
@@ -267,6 +259,16 @@
                                     <option value="">Select a column</option>
                                 </select>
                             </div>
+                            <!-- Add Phone Button -->
+                            <div class="mt-2">
+                                <button type="button" id="add-phone-btn"
+                                    class="text-primary hover:text-secondary text-sm">
+                                    <i class="fas fa-plus mr-1"></i> Add another phone number
+                                </button>
+                            </div>
+
+                            <!-- Container for additional phones -->
+                            <div id="additional-phones-container" class="mt-4 space-y-4"></div>
                         </div>
                     </div>
 
@@ -361,10 +363,30 @@
         </div>
 
         <!-- Footer -->
-        <footer class="mt-16 pt-8 border-t text-center text-gray-600">
-            <p>© 2023 vCard Generator. All rights reserved.</p>
-            <p class="mt-2 text-sm">This tool runs entirely in your browser - your data never leaves your computer.</p>
+        <footer class="mt-16 pt-10 border-t text-center text-gray-600">
+            <p class="text-lg font-semibold text-gray-700">Made with ❤️ by <span class="text-blue-600">Santhosh M
+                    K</span></p>
+            <p class="mt-1 text-sm">This tool runs entirely in your browser – your data never leaves your computer.</p>
+
+            <div class="mt-4 flex justify-center gap-6 text-gray-500 text-xl">
+                <a href="https://instagram.com/mksantho.sh" target="_blank"
+                    class="hover:text-pink-600 transition-all duration-200" aria-label="Instagram">
+                    <i class="fab fa-instagram"></i>
+                </a>
+                <a href="https://github.com/devsanthoshmk" target="_blank"
+                    class="hover:text-gray-900 transition-all duration-200" aria-label="GitHub">
+                    <i class="fab fa-github"></i>
+                </a>
+                <a href="https://linkedin.com/in/santhosh-m-k" target="_blank"
+                    class="hover:text-blue-700 transition-all duration-200" aria-label="LinkedIn">
+                    <i class="fab fa-linkedin-in"></i>
+                </a>
+            </div>
+
+            <p class="mt-6 text-xs text-gray-400">&copy; 2023 vCard Generator. All rights reserved.</p>
         </footer>
+
+
     </div>
 
     <script>
@@ -427,20 +449,13 @@
                     `FN;CHARSET=UTF-8:${fn}`,
                 ];
 
-                // Primary (cell) phone
-                if (data.phone) {
-                    lines.push(
-                        `TEL;TYPE=CELL:${this.escapeValue(this.normalizePhone(data.phone))}`
-                    );
-                }
-
-                // Work phone
-                if (data.additional_phone) {
-                    lines.push(
-                        `TEL;TYPE=WORK:${this.escapeValue(
-                            this.normalizePhone(data.additional_phone)
-                        )}`
-                    );
+                // Handle multiple phones
+                if (data.phones && data.phones.length > 0) {
+                    data.phones.forEach(phone => {
+                        if (phone.number) {
+                            lines.push(`TEL;TYPE=${phone.type}:${this.escapeValue(phone.number)}`);
+                        }
+                    });
                 }
 
                 if (data.email) {
@@ -485,32 +500,47 @@
             }
 
             generateVCard(mapping) {
-                // Reset, prefix with BOM
                 this.finVCard = this.BOM;
-
                 for (const record of this.records) {
+                    // start with the primary phone
+                    const phones = [];
+                    if (mapping.phone) {
+                        phones.push({
+                            number: this.normalizePhone(record[mapping.phone]),
+                            type: "CELL"
+                        });
+                    }
+                    // now append any additional phones
+                    if (Array.isArray(mapping.additional_phones)) {
+                        mapping.additional_phones.forEach(({ column, type }) => {
+                            const raw = record[column];
+                            if (raw) {
+                                phones.push({
+                                    number: this.normalizePhone(raw),
+                                    type: type.toUpperCase()
+                                });
+                            }
+                        });
+                    }
+
                     const data = {
                         first_name: mapping.first_name ? record[mapping.first_name] : "",
                         last_name: mapping.last_name ? record[mapping.last_name] : "",
                         full_name: mapping.full_name ? record[mapping.full_name] : "",
-                        phone: mapping.phone ? record[mapping.phone] : "",
-                        additional_phone: mapping.additional_phone
-                            ? record[mapping.additional_phone]
-                            : "",
+                        phones,      // <-- use our merged array
                         email: mapping.email ? record[mapping.email] : "",
                         address: mapping.address ? record[mapping.address] : "",
-                        organization: mapping.organization
-                            ? record[mapping.organization]
-                            : "",
+                        organization: mapping.organization ? record[mapping.organization] : "",
                         title: mapping.title ? record[mapping.title] : "",
                         url: mapping.url ? record[mapping.url] : "",
-                        birthday: mapping.birthday ? record[mapping.birthday] : "",
+                        birthday: mapping.birthday ? record[mapping.birthday] : ""
                     };
+
                     this.finVCard += this.addContact(data);
                 }
-
                 return this.finVCard;
             }
+
         }
 
 
@@ -588,6 +618,79 @@
                 columnMapping[field] = e.target.value;
             });
         });
+
+        // Add additional phone number functionality
+        // Add event listeners
+        document.getElementById('add-phone-btn').addEventListener('click', addPhoneField);
+
+        // Function to add phone field
+        function addPhoneField() {
+            const container = document.getElementById('additional-phones-container');
+            const id = `phone_${Date.now()}`;
+
+            const fieldHTML = `
+        <div class="field-card phone-field">
+            <div class="flex items-end gap-3">
+                <div class="flex-1">
+                    <label class="block text-gray-700 font-medium mb-2">Additional Phone</label>
+                    <select class="additional-phone-select w-full p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary">
+                        <option value="">Select a column</option>
+                    </select>
+                </div>
+                <div class="w-40">
+                    <label class="block text-gray-700 font-medium mb-2">Type</label>
+                    <select class="phone-type-select w-full p-3 border border-gray-300 rounded-lg focus:ring-primary focus:border-primary">
+                        <option value="CELL">Cell</option>
+                        <option value="WORK">Work</option>
+                        <option value="HOME">Home</option>
+                        <option value="OTHER">Other</option>
+                    </select>
+                </div>
+                <button type="button" class="remove-field-btn text-red-500 hover:text-red-700 p-2">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        </div>
+    `;
+
+            // Event delegation for remove buttons
+            document.addEventListener('click', (e) => {
+                if (e.target.closest('.remove-field-btn')) {
+                    e.target.closest('.field-card').remove();
+                }
+            });
+
+            const div = document.createElement('div');
+            div.innerHTML = fieldHTML;
+            container.appendChild(div);
+
+            // Populate dropdown
+            const select = div.querySelector('.additional-phone-select');
+            populateDropdown(select);
+
+            // Add remove event
+            div.querySelector('.remove-field-btn').addEventListener('click', () => {
+                div.remove();
+            });
+        }
+
+        // Function to populate dropdowns
+        function populateDropdown(select) {
+            if (!contactApp) return;
+
+            // Clear existing options
+            while (select.options.length > 1) {
+                select.remove(1);
+            }
+
+            // Add header options
+            contactApp.headers.forEach(header => {
+                const option = document.createElement('option');
+                option.value = header;
+                option.textContent = header;
+                select.appendChild(option);
+            });
+        }
 
         // Functions
         function handleFileUpload(file) {
@@ -713,15 +816,23 @@
                 return;
             }
 
-            if (!columnMapping.full_name) {
-                alert('Please map the Full Name field');
-                return;
-            }
-
             if (!columnMapping.phone) {
                 alert('Please map the Phone field');
                 return;
             }
+
+            columnMapping.additional_phones = [];
+            document.querySelectorAll('.phone-field').forEach(field => {
+                const columnSelect = field.querySelector('.additional-phone-select');
+                const typeSelect = field.querySelector('.phone-type-select');
+
+                if (columnSelect.value) {
+                    columnMapping.additional_phones.push({
+                        column: columnSelect.value,
+                        type: typeSelect.value
+                    });
+                }
+            });
 
             // Generate vCard
             const vcardContent = contactApp.generateVCard(columnMapping);
