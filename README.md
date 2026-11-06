@@ -4,6 +4,12 @@ Make_vCard-web is a client-side web application and Node.js command-line tool th
 
 The project works as a vCard generator web application and digital business card creator for bulk address book conversions. It converts rows from Excel, ODS, and CSV spreadsheets into VCF files ready for mobile phones, email clients, or conversion into a QR contact card.
 
+## Live demo
+
+[https://make-vcard.sanpro.workers.dev](https://make-vcard.sanpro.workers.dev)
+
+The app runs as a Cloudflare Worker with static assets.
+
 ## Architecture
 
 The repository contains two converter implementations and a Python test suite:
@@ -125,3 +131,13 @@ The output adheres to the RFC 2426 standard:
 - Value escaping: Escapes backslashes, semicolons, commas, and line breaks
 - Line folding: Folds lines longer than 75 bytes using standard continuation sequences
 - Telephone normalization: Converts leading `00` country code prefixes into standard `+` signs
+
+## Deploy
+
+Deploy the application to Cloudflare Workers:
+
+```bash
+npx wrangler deploy
+```
+
+The configuration in `wrangler.jsonc` serves the repository root as static assets with single-page fallback. Deployments publish to [https://make-vcard.sanpro.workers.dev](https://make-vcard.sanpro.workers.dev).
